@@ -4,8 +4,9 @@ namespace: hermes
 
 resources:
   - 01-namespace.yaml
-  - 02-hermes-storage.yaml
-  - 03-hermes-config.yaml
-  - 04-hermes-deployment.yaml
-  - 05-hermes-service.yaml
-  - 06-hermes-route.yaml
+  - 02-hermes-serviceaccount.yaml
+  - 03-hermes-storage.yaml
+  - 04-hermes-config.yaml
+  - 05-hermes-deployment.yaml
+  - 06-hermes-service.yaml
+  - 07-hermes-route.yaml

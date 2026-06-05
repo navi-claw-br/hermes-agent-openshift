@@ -1,0 +1,81 @@
+# UBI 9 based Dockerfile for Hermes Agent on OpenShift
+# Adapted from aicatalyst-team/hermes-openshift
+# Runs without s6-overlay — compatible with OpenShift restricted-v2 SCC
+
+FROM registry.access.redhat.com/ubi9/ubi:latest AS base
+
+ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+
+# Install system dependencies
+RUN dnf install -y \
+    python3.11 python3.11-devel python3.11-pip \
+    gcc gcc-c++ make git grep procps-ng openssh-clients \
+    libffi-devel ca-certificates \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# Install Node.js 20.x from NodeSource
+RUN curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - \
+    && dnf install -y nodejs \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
+
+# Create non-root user (OpenShift overrides UID at runtime, so group 0 is key)
+RUN useradd -u 1001 -m -d /opt/data hermes
+
+WORKDIR /opt/hermes
+
+# Layer-cached dependency install
+# Note: web/ and ui-tui/ don't have package-lock.json (root lock file covers everything)
+COPY package.json package-lock.json ./
+COPY web/package.json web/
+COPY ui-tui/package.json ui-tui/
+COPY ui-tui/packages/hermes-ink/package.json ui-tui/packages/hermes-ink/
+
+RUN npm install --prefer-offline --no-audit && \
+    npx playwright install chromium && \
+    (cd web && npm install --prefer-offline --no-audit) && \
+    (cd ui-tui && npm install --prefer-offline --no-audit) && \
+    npm cache clean --force
+
+# Copy source code
+COPY . .
+
+# Build web UI
+RUN cd web && npm run build
+
+# Build TUI (not required for gateway, but kept for completeness)
+RUN cd ui-tui && npm run build || true
+
+# OpenShift permissions (arbitrary UID, always GID 0)
+RUN chown -R 1001:0 /opt/hermes && \
+    chmod -R a+rX /opt/hermes && \
+    chmod -R g=u /opt/hermes
+
+# Python virtualenv with all dependencies
+RUN python3.11 -m venv /opt/hermes/venv && \
+    . /opt/hermes/venv/bin/activate && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e ".[all,messaging]"
+
+# Make venv accessible to arbitrary UID
+RUN chmod -R a+rX /opt/hermes/venv && \
+    chgrp -R 0 /opt/hermes/venv && \
+    chmod -R g=u /opt/hermes/venv
+
+ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
+ENV HERMES_HOME=/opt/data
+ENV PATH="/opt/hermes/venv/bin:/opt/data/.local/bin:${PATH}"
+
+# Ensure data volume writable by group 0 (OpenShift's group)
+RUN mkdir -p /opt/data && \
+    chgrp -R 0 /opt/data && \
+    chmod -R g=u /opt/data
+
+VOLUME ["/opt/data"]
+
+# No USER directive — OpenShift assigns arbitrary UID with GID 0.
+# The entrypoint runs directly, no s6-overlay.
+ENTRYPOINT ["/opt/hermes/venv/bin/python", "-m", "hermes_cli.main"]
+CMD ["--help"]

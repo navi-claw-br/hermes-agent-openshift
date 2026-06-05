@@ -58,10 +58,10 @@ Deploy [Hermes Agent](https://github.com/NousResearch/hermes-agent) — the self
 git clone https://github.com/navi-claw-br/hermes-agent-openshift.git
 cd hermes-agent-openshift
 
-# 2. Create namespace and resources
+# 2. Create namespace and all resources (SA, PVC, ConfigMap, Deployment, Service, Route)
 oc apply -k manifests/
 
-# 3. Configure your LLM API key
+# 3. Configure your LLM API key (REQUIRED — Hermes won't start without it)
 oc create secret generic hermes-secrets \
   --from-literal=OPENAI_API_KEY=sk-your-key-here \
   -n hermes
@@ -76,9 +76,14 @@ oc set env deployment/hermes-agent \
 oc get pods -n hermes -w
 ```
 
+> **Note on SCC:** Hermes Agent uses s6-overlay as PID 1, which requires root
+> during bootstrap before dropping privileges. The `anyuid` SCC is bound to the
+> `hermes-agent` service account to allow this. This is standard for
+> s6-overlay-based containers on OpenShift.
+
 ## Configuration
 
-### ConfigMap (`03-hermes-config.yaml`)
+### ConfigMap (`04-hermes-config.yaml`)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
