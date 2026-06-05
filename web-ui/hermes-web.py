@@ -424,8 +424,16 @@ async def handle_login(request):
             }
         })
 
-        # Resultado MCP pode vir em result.content ou result
+        # Verificar se o MCP retornou erro
         mcp_result = result.get("result", {}) or result
+        if mcp_result.get("isError"):
+            print(f"[login] FALHA: user={u} condominio={CONDOMINIO} ip={ip} - MCP retornou erro: {mcp_result.get('content', [{}])[0].get('text','')[:80] if isinstance(mcp_result.get('content'), list) else ''}")
+            return web.json_response(
+                {"error": "Usuário ou senha inválidos — verifique suas credenciais de administrador"},
+                status=401
+            )
+
+        # Extrair token do resultado
         content = mcp_result.get("content", [])
         mcp_token = ""
 
