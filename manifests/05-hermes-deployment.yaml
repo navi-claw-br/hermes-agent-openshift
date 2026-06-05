@@ -27,37 +27,50 @@ spec:
           type: RuntimeDefault
       containers:
         - name: hermes
-          # Custom UBI 9 image built for OpenShift compatibility.
-          # Build: podman build -f Dockerfile.ubi -t ghcr.io/navi-claw-br/hermes-agent:latest .
           image: ghcr.io/navi-claw-br/hermes-agent:latest
           imagePullPolicy: IfNotPresent
           command:
-            - /opt/hermes/venv/bin/python
-            - -m
-            - hermes_cli.main
-          args:
-            - gateway
+            - /bin/sh
+            - -c
+            - |
+              echo "[start] Hermes Agent gateway em background..."
+              /opt/hermes/venv/bin/python -m hermes_cli.main gateway &
+              echo "[start] Aguardando Hermes API em 8642..."
+              for i in $(seq 1 30); do
+                if curl -sf http://127.0.0.1:8642/health > /dev/null 2>&1; then
+                  echo "[start] Hermes API pronto!"
+                  break
+                fi
+                sleep 2
+              done
+              echo "[start] Iniciando Web UI Hanna na porta 8080..."
+              exec /opt/hermes/venv/bin/python /opt/hermes-web/hermes-web.py
           envFrom:
             - configMapRef:
                 name: hermes-config
           env:
-            # LLM API key — set via Secret for production
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: hermes-secrets
                   key: OPENAI_API_KEY
                   optional: true
+            - name: WEB_USERNAME
+              value: "hanna"
+            - name: WEB_PASSWORD
+              value: "hanna123"
           ports:
             - containerPort: 8642
               protocol: TCP
               name: http-api
             - containerPort: 8080
               protocol: TCP
-              name: http-gateway
+              name: http-web
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            - name: web-ui
+              mountPath: /opt/hermes-web
           resources:
             requests:
               memory: "2Gi"
@@ -67,14 +80,14 @@ spec:
               cpu: "2000m"
           livenessProbe:
             httpGet:
-              path: /health
-              port: 8642
+              path: /
+              port: 8080
             initialDelaySeconds: 60
             periodSeconds: 30
           readinessProbe:
             httpGet:
-              path: /health
-              port: 8642
+              path: /
+              port: 8080
             initialDelaySeconds: 30
             periodSeconds: 15
           securityContext:
@@ -86,3 +99,6 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data
+        - name: web-ui
+          configMap:
+            name: hermes-web

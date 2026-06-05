@@ -11,3 +11,4 @@ resources:
   - 05-hermes-deployment.yaml
   - 06-hermes-service.yaml
   - 07-hermes-route.yaml
+  - 08-hermes-web-config.yaml

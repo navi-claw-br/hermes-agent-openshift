@@ -10,7 +10,11 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - name: http
+    - name: http-web
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: http-api
       port: 8642
       targetPort: 8642
       protocol: TCP

@@ -14,7 +14,7 @@ spec:
     kind: Service
     name: hermes-agent
   port:
-    targetPort: http
+    targetPort: http-web
   tls:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
