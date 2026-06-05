@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config
+  namespace: hermes
+  labels:
+    app.kubernetes.io/name: hermes-agent
+    app.kubernetes.io/component: config
+data:
+  # LLM Configuration — point to your OpenAI-compatible endpoint
+  # Examples:
+  #   OpenAI:        https://api.openai.com/v1
+  #   Anthropic:     (uses ANTHROPIC_API_KEY instead)
+  #   Local vLLM:    http://hermes-llm-predictor.hermes.svc.cluster.local:8080/v1
+  OPENAI_BASE_URL: "https://api.openai.com/v1"
+  LLM_MODEL: "gpt-4o"
+
+  # Hermes Agent settings
+  HERMES_HOME: "/opt/data"
+  GATEWAY_PORT: "8080"
+  GATEWAY_ALLOW_ALL_USERS: "true"
+
+  # Logging
+  HERMES_LOG_LEVEL: "INFO"
+
+  # Python path (venv is baked into the image)
+  VIRTUAL_ENV: "/opt/hermes/venv"

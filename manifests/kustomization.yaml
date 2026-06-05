@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: hermes
+
+resources:
+  - 01-namespace.yaml
+  - 02-hermes-storage.yaml
+  - 03-hermes-config.yaml
+  - 04-hermes-deployment.yaml
+  - 05-hermes-service.yaml
+  - 06-hermes-route.yaml
