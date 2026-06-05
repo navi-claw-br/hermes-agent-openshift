@@ -1,0 +1,3 @@
+# Ignorar secrets reais (não versionar API keys)
+04-hermes-secrets.yaml
+*.secret.yaml
