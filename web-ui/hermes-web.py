@@ -56,7 +56,7 @@ async def mcp_call(method: str, params: dict = None, token: str = None) -> dict:
             timeout=aiohttp.ClientTimeout(total=30)
         ) as resp:
             text = await resp.text()
-            # Handle SSE responses (tools/call returns text/event-stream)
+            # Streamable HTTP: tools/call retorna text/event-stream (JSON-RPC sobre SSE wire format)
             if "event:" in text or "data:" in text:
                 import re
                 # Extract last data: line
