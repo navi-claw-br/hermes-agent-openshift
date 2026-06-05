@@ -12,7 +12,7 @@ WEB_PORT      = int(os.getenv("WEB_PORT", "8080"))
 HERMES_API    = os.getenv("HERMES_API", "http://127.0.0.1:8642")
 CONDOMINIO    = os.getenv("CONDOMINIO", "").strip().rstrip("/")
 MCP_ADMIN_URL = os.getenv("MCP_ADMIN_URL", "https://mcp-server-mo-admin.mo.app.br/mcp")
-SESSION_SECRET= ***"SESSION_SECRET", "agente-admin-secret")
+SESSION_SECRET= os.getenv("SESSION_SECRET", "agente-admin-secret")
 
 # ── Session helpers ────────────────────────────────────────────
 def make_token(data: dict) -> str:
