@@ -380,13 +380,13 @@ async function sendMsg(){
 }
 
 (async()=>{
-  if(token&&await checkAuth()){
-    const d=loginData||JSON.parse(atob(token.split('.')[0]||e��'))||{};
+  try{if(token&&await checkAuth()){
+    try{let d=loginData||JSON.parse(atob(token.split('.')[0].replace(/-/g,'+').replace(/_/g,'/')||'')||'e30=')||{}}catch(e){d=loginData||{}}
     document.getElementById('loginPage').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
     document.getElementById('userDisplay').textContent='👤 '+(d.user||'');
     if(d.condominio) document.getElementById('condDisplay').textContent='🏢 '+d.condominio;
-  }
+  }}catch(e){}
 })();
 </script>
 </body>
@@ -399,10 +399,12 @@ async def handle_index(request):
 
 async def handle_login(request):
     """Autentica via MCP autenticar do condomínio."""
+    ip = request.remote or request.headers.get("X-Forwarded-For", "desconhecido")
     try:
         body = await request.json()
         u = body.get("username", "").strip()
         p = body.get("password", "").strip()
+        print(f"[login] Tentativa de login: user={u} ip={ip} condominio={CONDOMINIO}")
         if not u or not p:
             return web.json_response({"error": "Usuário e senha obrigatórios"}, status=400)
 
@@ -444,8 +446,10 @@ async def handle_login(request):
                 "iat": int(time.time())
             }
             tok = make_token(session_data)
+            print(f"[login] SUCESSO: user={u} condominio={CONDOMINIO} ip={ip}")
             return web.json_response({"token": tok, "user": u, "condominio": CONDOMINIO})
         else:
+            print(f"[login] FALHA: user={u} condominio={CONDOMINIO} ip={ip} - credenciais invalidas")
             return web.json_response(
                 {"error": "Usuário ou senha inválidos — verifique suas credenciais de administrador"},
                 status=401
