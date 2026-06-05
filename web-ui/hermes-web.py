@@ -39,7 +39,7 @@ def check_token(token: str) -> dict | None:
 # ── MCP Client ────────────────────────────────────────────────
 async def mcp_call(method: str, params: dict = None, token: str = None) -> dict:
     """Chama o MCP server admin via JSON-RPC."""
-    headers = {"Content-Type": "application/json"}
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
@@ -55,7 +55,19 @@ async def mcp_call(method: str, params: dict = None, token: str = None) -> dict:
             MCP_ADMIN_URL, json=payload, headers=headers,
             timeout=aiohttp.ClientTimeout(total=30)
         ) as resp:
-            return await resp.json()
+            text = await resp.text()
+            # Handle SSE responses (tools/call returns text/event-stream)
+            if "event:" in text or "data:" in text:
+                import re
+                # Extract last data: line
+                data_matches = re.findall(r'^data: (.+)$', text, re.MULTILINE)
+                if data_matches:
+                    return json.loads(data_matches[-1])
+            # Fallback: try direct JSON
+            try:
+                return json.loads(text)
+            except (json.JSONDecodeError, ValueError):
+                return {"error": f"Resposta inesperada: {text[:200]}"}
 
 # ── HTML Template ──────────────────────────────────────────────
 HTML = r"""<!DOCTYPE html>
