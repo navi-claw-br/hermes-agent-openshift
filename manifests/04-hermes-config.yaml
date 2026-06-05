@@ -27,3 +27,9 @@ data:
 
   # Logging
   HERMES_LOG_LEVEL: "INFO"
+
+  # Condomínio — URL base usada nas chamadas MCP
+  CONDOMINIO: ""
+
+  # MCP Server Admin do Morador Online
+  MCP_ADMIN_URL: "https://mcp-server-mo-admin.mo.app.br/mcp"
