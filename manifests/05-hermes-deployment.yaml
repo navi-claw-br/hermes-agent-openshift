@@ -49,6 +49,8 @@ spec:
             - configMapRef:
                 name: hermes-config
           env:
+            - name: HOME
+              value: /opt/data
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
