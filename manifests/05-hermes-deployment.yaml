@@ -33,6 +33,24 @@ spec:
             - /bin/sh
             - -c
             - |
+              if [ -n "$OPENAI_API_KEY" ]; then
+                /opt/hermes/venv/bin/python - <<'PY'
+              import os, re
+
+              path = "/opt/data/config.yaml"
+              api_key = os.environ.get("OPENAI_API_KEY", "")
+              if api_key and os.path.exists(path):
+                  with open(path, "r", encoding="utf-8") as f:
+                      config = f.read()
+                  if re.search(r"^\s*api_key:\s*.*$", config, re.M):
+                      config = re.sub(r"^(\s*api_key:\s*).*$", r"\1" + api_key, config, flags=re.M)
+                  else:
+                      config = config.rstrip() + "\n  api_key: " + api_key + "\n"
+                  with open(path, "w", encoding="utf-8") as f:
+                      f.write(config)
+                  print("[start] Hermes config api_key sincronizada com OPENAI_API_KEY")
+              PY
+              fi
               echo "[start] Hermes Agent gateway em background..."
               /opt/hermes/venv/bin/python -m hermes_cli.main gateway &
               echo "[start] Aguardando Hermes API em 8642..."
