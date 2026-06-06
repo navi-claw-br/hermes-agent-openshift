@@ -60,11 +60,11 @@ spec:
             - name: WEB_USERNAME
               value: "hanna"
             - name: WEB_PASSWORD
+              value: "hanna123"
             - name: CONDOMINIO
               value: ""
             - name: MCP_ADMIN_URL
               value: "https://mcp-server-mo-admin.mo.app.br/mcp"
-              value: "hanna123"
           ports:
             - containerPort: 8642
               protocol: TCP
