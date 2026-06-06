@@ -10,9 +10,19 @@ from aiohttp import web
 # ── Configuração ──────────────────────────────────────────────
 WEB_PORT      = int(os.getenv("WEB_PORT", "8080"))
 HERMES_API    = os.getenv("HERMES_API", "http://127.0.0.1:8642")
+LLM_MODEL     = os.getenv("LLM_MODEL", "deepseek-chat")
 CONDOMINIO    = os.getenv("CONDOMINIO", "").strip().rstrip("/")
 MCP_ADMIN_URL = os.getenv("MCP_ADMIN_URL", "https://mcp-server-mo-admin.mo.app.br/mcp")
 SESSION_SECRET= os.getenv("SESSION_SECRET", "agente-admin-secret")
+
+def sanitize_error(text: str) -> str:
+    """Remove detalhes sensíveis de erros antes de logar/exibir."""
+    if not text:
+        return ""
+    import re
+    text = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", text)
+    text = re.sub(r"Your api key: [^ ]+", "Your api key: ****", text)
+    return text[:500]
 
 # ── Session helpers ────────────────────────────────────────────
 def make_token(data: dict) -> str:
@@ -20,7 +30,7 @@ def make_token(data: dict) -> str:
     raw = json.dumps(data, sort_keys=True, separators=(",", ":"))
     sig = hmac.new(SESSION_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:24]
     token = base64.urlsafe_b64encode(f"{raw}|{sig}".encode()).decode()
-    return token[:64]
+    return token
 
 def check_token(token: str) -> dict | None:
     """Retorna payload se token válido, None caso contrário."""
@@ -503,6 +513,8 @@ async def handle_chat(request):
             return web.json_response({"error": "Mensagem vazia"}, status=400)
 
         msgs = body.get("messages") or [{"role": "user", "content": msg}]
+        user = session.get("user", "desconhecido")
+        print(f"[chat] Tentativa: user={user} model={LLM_MODEL} chars={len(msg)}")
 
         api_key = os.getenv("API_SERVER_KEY", "")
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
@@ -510,18 +522,28 @@ async def handle_chat(request):
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{HERMES_API}/v1/chat/completions",
-                json={"model": "deepseek-chat", "messages": msgs},
+                json={"model": LLM_MODEL, "messages": msgs},
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=120)
             ) as resp:
                 if resp.status == 200:
-                    return web.json_response(await resp.json())
+                    data = await resp.json()
+                    print(f"[chat] SUCESSO: user={user} model={LLM_MODEL}")
+                    return web.json_response(data)
                 err = await resp.text()
-                return web.json_response({"error": f"Hermes API error: {resp.status}"}, status=502)
+                detail = sanitize_error(err)
+                print(f"[chat] FALHA: user={user} model={LLM_MODEL} status={resp.status} erro={detail}")
+                return web.json_response(
+                    {"error": f"Hermes API error {resp.status}: {detail or 'sem detalhes'}"},
+                    status=502
+                )
     except asyncio.TimeoutError:
+        print(f"[chat] FALHA: timeout ao conectar com Hermes")
         return web.json_response({"error": "Timeout ao conectar com Hermes"}, status=504)
     except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+        detail = sanitize_error(str(e))
+        print(f"[chat] FALHA: erro interno: {detail}")
+        return web.json_response({"error": detail}, status=500)
 
 # ── Startup ────────────────────────────────────────────────────
 async def main():
@@ -539,6 +561,7 @@ async def main():
     print(f"[Web] Agente Administrativo rodando em http://0.0.0.0:{WEB_PORT}")
     print(f"[Web] MCP Admin: {MCP_ADMIN_URL}")
     print(f"[Web] Condomínio: {CONDOMINIO or 'NÃO CONFIGURADO'}")
+    print(f"[Web] LLM: {LLM_MODEL}")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
