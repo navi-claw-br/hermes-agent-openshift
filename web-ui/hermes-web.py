@@ -494,7 +494,12 @@ async def handle_mcp_tools(request):
 
     try:
         result = await mcp_call("tools/list")
-        return web.json_response(result)
+        tools = (
+            result.get("tools")
+            or result.get("result", {}).get("tools")
+            or []
+        )
+        return web.json_response({"tools": tools})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=502)
 

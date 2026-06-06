@@ -33,19 +33,35 @@ spec:
             - /bin/sh
             - -c
             - |
-              if [ -n "$OPENAI_API_KEY" ]; then
+              if [ -n "$OPENAI_API_KEY" ] || [ -n "$MCP_ADMIN_URL" ]; then
                 /opt/hermes/venv/bin/python - <<'PY'
-              import os, re
+              import os, re, yaml
 
               path = "/opt/data/config.yaml"
               api_key = os.environ.get("OPENAI_API_KEY", "")
-              if api_key and os.path.exists(path):
+              mcp_admin_url = os.environ.get("MCP_ADMIN_URL", "").strip()
+              if os.path.exists(path):
                   with open(path, "r", encoding="utf-8") as f:
                       config = f.read()
+              else:
+                  config = ""
+              if api_key:
                   if re.search(r"^\s*api_key:\s*.*$", config, re.M):
                       config = re.sub(r"^(\s*api_key:\s*).*$", r"\1" + api_key, config, flags=re.M)
-                  else:
+                  elif config.strip():
                       config = config.rstrip() + "\n  api_key: " + api_key + "\n"
+                  else:
+                      config = "model:\n  api_key: " + api_key + "\n"
+              data = yaml.safe_load(config) or {}
+              if mcp_admin_url:
+                  data.setdefault("mcp_servers", {})["mo-admin"] = {
+                      "url": mcp_admin_url,
+                      "enabled": True,
+                  }
+                  with open(path, "w", encoding="utf-8") as f:
+                      yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+                  print("[start] Hermes MCP mo-admin sincronizado com MCP_ADMIN_URL")
+              elif api_key:
                   with open(path, "w", encoding="utf-8") as f:
                       f.write(config)
                   print("[start] Hermes config api_key sincronizada com OPENAI_API_KEY")

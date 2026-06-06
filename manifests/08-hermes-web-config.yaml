@@ -255,7 +255,9 @@ data:
     request.headers.get(\"Authorization\", \"\")\n    tok = auth.replace(\"Bearer
     \", \"\") if auth.startswith(\"Bearer \") else \"\"\n    if not check_token(tok):\n
     \       return web.json_response({\"error\": \"Não autorizado\"}, status=401)\n\n
-    \   try:\n        result = await mcp_call(\"tools/list\")\n        return web.json_response(result)\n
+    \   try:\n        result = await mcp_call(\"tools/list\")\n        tools = (\n
+    \           result.get(\"tools\")\n            or result.get(\"result\", {}).get(\"tools\")\n
+    \           or []\n        )\n        return web.json_response({\"tools\": tools})\n
     \   except Exception as e:\n        return web.json_response({\"error\": str(e)},
     status=502)\n\nasync def handle_chat(request):\n    \"\"\"Proxy de chat para o
     Hermes Agent.\"\"\"\n    auth = request.headers.get(\"Authorization\", \"\")\n
