@@ -96,7 +96,7 @@ spec:
             - name: WEB_PASSWORD
               value: "hanna123"
             - name: CONDOMINIO
-              value: ""
+              value: "dev.mo.app.br"
             - name: MCP_ADMIN_URL
               value: "https://mcp-server-mo-admin.mo.app.br/mcp"
           ports:

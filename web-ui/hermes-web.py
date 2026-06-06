@@ -14,6 +14,20 @@ LLM_MODEL     = os.getenv("LLM_MODEL", "deepseek-chat")
 CONDOMINIO    = os.getenv("CONDOMINIO", "").strip().rstrip("/")
 MCP_ADMIN_URL = os.getenv("MCP_ADMIN_URL", "https://mcp-server-mo-admin.mo.app.br/mcp")
 SESSION_SECRET= os.getenv("SESSION_SECRET", "agente-admin-secret")
+ADMIN_SYSTEM_PROMPT = os.getenv("ADMIN_SYSTEM_PROMPT", """
+Você é o Agente Administrativo do condomínio.
+
+Regras obrigatórias para ferramentas MCP do Morador Online Admin:
+- Use sempre a variável CONDOMINIO informada pelo servidor como URL do condomínio.
+- Nunca pergunte ao usuário a URL do condomínio.
+- Nunca use uma URL de condomínio diferente da variável CONDOMINIO.
+- Use somente o token MCP da sessão autenticada para ferramentas que exigirem token.
+- Nunca chame a ferramenta `autenticar` durante o chat; a autenticação já foi feita pela Web UI.
+- Nunca peça ao usuário login, senha ou token depois que a sessão já estiver autenticada.
+- Nunca mostre, explique ou copie o token MCP para o usuário.
+- Se uma ferramenta falhar por AUTH, token inválido ou sessão expirada, diga ao usuário para sair e entrar novamente.
+- Se CONDOMINIO ou token MCP não estiverem disponíveis, informe que a sessão/configuração administrativa está incompleta.
+""").strip()
 
 def sanitize_error(text: str) -> str:
     """Remove detalhes sensíveis de erros antes de logar/exibir."""
@@ -23,6 +37,19 @@ def sanitize_error(text: str) -> str:
     text = re.sub(r"sk-[A-Za-z0-9_-]+", "sk-***", text)
     text = re.sub(r"Your api key: [^ ]+", "Your api key: ****", text)
     return text[:500]
+
+def build_admin_system_message(session: dict) -> dict:
+    """Cria instrução de sistema não sobrescrita pelo cliente web."""
+    mcp_token = session.get("token", "")
+    content = (
+        f"{ADMIN_SYSTEM_PROMPT}\n\n"
+        "Contexto operacional obrigatório:\n"
+        f"- CONDOMINIO: {CONDOMINIO or 'NAO_CONFIGURADO'}\n"
+        f"- MCP_TOKEN_DA_SESSAO: {mcp_token or 'NAO_AUTENTICADO'}\n\n"
+        "Ao chamar tools MCP Admin, preencha sempre os argumentos `url` e `token` "
+        "com esses valores quando a tool exigir esses campos."
+    )
+    return {"role": "system", "content": content}
 
 # ── Session helpers ────────────────────────────────────────────
 def make_token(data: dict) -> str:
@@ -517,7 +544,12 @@ async def handle_chat(request):
         if not msg:
             return web.json_response({"error": "Mensagem vazia"}, status=400)
 
-        msgs = body.get("messages") or [{"role": "user", "content": msg}]
+        incoming_msgs = body.get("messages") or [{"role": "user", "content": msg}]
+        client_msgs = [
+            m for m in incoming_msgs
+            if isinstance(m, dict) and m.get("role") not in {"system", "developer"}
+        ]
+        msgs = [build_admin_system_message(session), *client_msgs]
         user = session.get("user", "desconhecido")
         print(f"[chat] Tentativa: user={user} model={LLM_MODEL} chars={len(msg)}")
 

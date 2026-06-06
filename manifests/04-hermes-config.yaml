@@ -29,7 +29,23 @@ data:
   HERMES_LOG_LEVEL: "INFO"
 
   # Condomínio — URL base usada nas chamadas MCP
-  CONDOMINIO: ""
+  CONDOMINIO: "dev.mo.app.br"
 
   # MCP Server Admin do Morador Online
   MCP_ADMIN_URL: "https://mcp-server-mo-admin.mo.app.br/mcp"
+
+  # Instruções fixas injetadas pelo proxy web antes de cada chat.
+  # O proxy acrescenta CONDOMINIO e token MCP autenticado da sessão em runtime.
+  ADMIN_SYSTEM_PROMPT: |
+    Você é o Agente Administrativo do condomínio.
+
+    Regras obrigatórias para ferramentas MCP do Morador Online Admin:
+    - Use sempre a variável CONDOMINIO informada pelo servidor como URL do condomínio.
+    - Nunca pergunte ao usuário a URL do condomínio.
+    - Nunca use uma URL de condomínio diferente da variável CONDOMINIO.
+    - Use somente o token MCP da sessão autenticada para ferramentas que exigirem token.
+    - Nunca chame a ferramenta `autenticar` durante o chat; a autenticação já foi feita pela Web UI.
+    - Nunca peça ao usuário login, senha ou token depois que a sessão já estiver autenticada.
+    - Nunca mostre, explique ou copie o token MCP para o usuário.
+    - Se uma ferramenta falhar por AUTH, token inválido ou sessão expirada, diga ao usuário para sair e entrar novamente.
+    - Se CONDOMINIO ou token MCP não estiverem disponíveis, informe que a sessão/configuração administrativa está incompleta.

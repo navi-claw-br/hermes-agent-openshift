@@ -8,11 +8,30 @@ data:
     \"http://127.0.0.1:8642\")\nLLM_MODEL     = os.getenv(\"LLM_MODEL\", \"deepseek-chat\")\nCONDOMINIO
     \   = os.getenv(\"CONDOMINIO\", \"\").strip().rstrip(\"/\")\nMCP_ADMIN_URL = os.getenv(\"MCP_ADMIN_URL\",
     \"https://mcp-server-mo-admin.mo.app.br/mcp\")\nSESSION_SECRET= os.getenv(\"SESSION_SECRET\",
-    \"agente-admin-secret\")\n\ndef sanitize_error(text: str) -> str:\n    \"\"\"Remove
-    detalhes sensíveis de erros antes de logar/exibir.\"\"\"\n    if not text:\n        return
-    \"\"\n    import re\n    text = re.sub(r\"sk-[A-Za-z0-9_-]+\", \"sk-***\", text)\n
-    \   text = re.sub(r\"Your api key: [^ ]+\", \"Your api key: ****\", text)\n    return
-    text[:500]\n\n# ── Session helpers ────────────────────────────────────────────\ndef
+    \"agente-admin-secret\")\nADMIN_SYSTEM_PROMPT = os.getenv(\"ADMIN_SYSTEM_PROMPT\",
+    \"\"\"\nVocê é o Agente Administrativo do condomínio.\n\nRegras obrigatórias para
+    ferramentas MCP do Morador Online Admin:\n- Use sempre a variável CONDOMINIO informada
+    pelo servidor como URL do condomínio.\n- Nunca pergunte ao usuário a URL do condomínio.\n-
+    Nunca use uma URL de condomínio diferente da variável CONDOMINIO.\n- Use somente
+    o token MCP da sessão autenticada para ferramentas que exigirem token.\n- Nunca
+    chame a ferramenta `autenticar` durante o chat; a autenticação já foi feita pela
+    Web UI.\n- Nunca peça ao usuário login, senha ou token depois que a sessão já
+    estiver autenticada.\n- Nunca mostre, explique ou copie o token MCP para o usuário.\n-
+    Se uma ferramenta falhar por AUTH, token inválido ou sessão expirada, diga ao
+    usuário para sair e entrar novamente.\n- Se CONDOMINIO ou token MCP não estiverem
+    disponíveis, informe que a sessão/configuração administrativa está incompleta.\n\"\"\").strip()\n\ndef
+    sanitize_error(text: str) -> str:\n    \"\"\"Remove detalhes sensíveis de erros
+    antes de logar/exibir.\"\"\"\n    if not text:\n        return \"\"\n    import
+    re\n    text = re.sub(r\"sk-[A-Za-z0-9_-]+\", \"sk-***\", text)\n    text = re.sub(r\"Your
+    api key: [^ ]+\", \"Your api key: ****\", text)\n    return text[:500]\n\ndef
+    build_admin_system_message(session: dict) -> dict:\n    \"\"\"Cria instrução de
+    sistema não sobrescrita pelo cliente web.\"\"\"\n    mcp_token = session.get(\"token\",
+    \"\")\n    content = (\n        f\"{ADMIN_SYSTEM_PROMPT}\\n\\n\"\n        \"Contexto
+    operacional obrigatório:\\n\"\n        f\"- CONDOMINIO: {CONDOMINIO or 'NAO_CONFIGURADO'}\\n\"\n
+    \       f\"- MCP_TOKEN_DA_SESSAO: {mcp_token or 'NAO_AUTENTICADO'}\\n\\n\"\n        \"Ao
+    chamar tools MCP Admin, preencha sempre os argumentos `url` e `token` \"\n        \"com
+    esses valores quando a tool exigir esses campos.\"\n    )\n    return {\"role\":
+    \"system\", \"content\": content}\n\n# ── Session helpers ────────────────────────────────────────────\ndef
     make_token(data: dict) -> str:\n    \"\"\"Gera token HMAC com payload JSON.\"\"\"\n
     \   raw = json.dumps(data, sort_keys=True, separators=(\",\", \":\"))\n    sig
     = hmac.new(SESSION_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()[:24]\n
@@ -265,13 +284,16 @@ data:
     \"\"\n    session = check_token(tok)\n    if not session:\n        return web.json_response({\"error\":
     \"Não autorizado\"}, status=401)\n\n    try:\n        body = await request.json()\n
     \       msg = body.get(\"message\", \"\").strip()\n        if not msg:\n            return
-    web.json_response({\"error\": \"Mensagem vazia\"}, status=400)\n\n        msgs
-    = body.get(\"messages\") or [{\"role\": \"user\", \"content\": msg}]\n        user
-    = session.get(\"user\", \"desconhecido\")\n        print(f\"[chat] Tentativa:
-    user={user} model={LLM_MODEL} chars={len(msg)}\")\n\n        api_key = os.getenv(\"API_SERVER_KEY\",
-    \"\")\n        headers = {\"Authorization\": f\"Bearer {api_key}\"} if api_key
-    else {}\n\n        async with aiohttp.ClientSession() as session:\n            async
-    with session.post(\n                f\"{HERMES_API}/v1/chat/completions\",\n                json={\"model\":
+    web.json_response({\"error\": \"Mensagem vazia\"}, status=400)\n\n        incoming_msgs
+    = body.get(\"messages\") or [{\"role\": \"user\", \"content\": msg}]\n        client_msgs
+    = [\n            m for m in incoming_msgs\n            if isinstance(m, dict)
+    and m.get(\"role\") not in {\"system\", \"developer\"}\n        ]\n        msgs
+    = [build_admin_system_message(session), *client_msgs]\n        user = session.get(\"user\",
+    \"desconhecido\")\n        print(f\"[chat] Tentativa: user={user} model={LLM_MODEL}
+    chars={len(msg)}\")\n\n        api_key = os.getenv(\"API_SERVER_KEY\", \"\")\n
+    \       headers = {\"Authorization\": f\"Bearer {api_key}\"} if api_key else {}\n\n
+    \       async with aiohttp.ClientSession() as session:\n            async with
+    session.post(\n                f\"{HERMES_API}/v1/chat/completions\",\n                json={\"model\":
     LLM_MODEL, \"messages\": msgs},\n                headers=headers,\n                timeout=aiohttp.ClientTimeout(total=120)\n
     \           ) as resp:\n                if resp.status == 200:\n                    data
     = await resp.json()\n                    print(f\"[chat] SUCESSO: user={user}
